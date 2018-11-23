@@ -75,10 +75,13 @@ public class ShellCraft
 
     @SubscribeEvent
     public void onPlayerAttemptChat(ClientChatEvent event) throws IOException, InterruptedException {
-        if (shellMode)
-        {
-            event.setCanceled(true);
-            core.process(event.getMessage());
+        if (shellMode) {
+            logger.debug("player attempted chat");
+            logger.debug(event.getMessage());
+            if (event.getMessage().charAt(0) != '/') {
+                event.setCanceled(true);
+                core.process(event.getMessage());
+            }
         }
     }
 
