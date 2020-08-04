@@ -69,6 +69,7 @@ public class ShellCore {
         if (homeDir == null) {
             homeDir = System.getProperty("user.home");
         }
+        builder.environment().put("HOME", homeDir);
         builder.directory(new File(homeDir));
     }
 
