@@ -1,5 +1,6 @@
 package com.nqnstudios.shellcraft;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -33,7 +34,15 @@ public class ShellCraft
 
     protected static Logger logger;
     private static boolean shellMode = false;
-    private static ShellCore core = new ShellCore();
+    private static ShellCore core;
+
+    static {
+        try {
+            core = new ShellCore();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     @EventHandler
     public void preInit(FMLPreInitializationEvent event)
@@ -49,8 +58,7 @@ public class ShellCraft
     }
 
     @SubscribeEvent
-    public static void onTick(TickEvent.PlayerTickEvent evt)
-    {
+    public static void onTick(TickEvent.PlayerTickEvent evt) throws IOException {
         if (evt.side == Side.CLIENT && evt.phase == TickEvent.Phase.END)
         {
             // Update the ShellCore
@@ -66,8 +74,7 @@ public class ShellCraft
     }
 
     @SubscribeEvent
-    public void onPlayerAttemptChat(ClientChatEvent event)
-    {
+    public void onPlayerAttemptChat(ClientChatEvent event) throws IOException, InterruptedException {
         if (shellMode)
         {
             event.setCanceled(true);
