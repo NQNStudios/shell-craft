@@ -1,15 +1,8 @@
 package com.nqnstudios.shellcraft;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Map;
 import java.util.Scanner;
-import java.util.concurrent.Executors;
-import java.util.function.Consumer;
+import org.apache.logging.log4j.Logger;
 
 public class ShellCore {
 
@@ -20,7 +13,6 @@ public class ShellCore {
         }
 
         public void run() {
-            System.out.println("Starting thread");
             while (true) {
                 try {
                     core.dumpOutput();
@@ -31,13 +23,15 @@ public class ShellCore {
         }
     }
 
+    boolean debug = false;
     public static void main(String[] args) throws IOException, InterruptedException {
         // Create a ShellCore and debug it in a repl
         ShellCore core = new ShellCore();
+        core.debug = true;
 
         Scanner sc = new Scanner(System.in);
 
-        System.out.println("Testing ShellCore");
+        System.out.println("Testing ShellCore. Enter commands:");
         while (sc.hasNextLine()) {
             String line = sc.nextLine();
             core.process(line);
@@ -53,6 +47,18 @@ public class ShellCore {
     private BufferedReader processError;
     private OutputThread outputThread;
 
+    private Logger logger = null;
+
+    public void setLogger(Logger logger) {
+        this.logger = logger;
+    }
+    private void log(String message) {
+        if (logger != null) {
+            logger.debug(message);
+        }
+        System.out.println(message);
+    }
+
     public ShellCore() throws IOException {
         isWindows = System.getProperty("os.name")
                 .toLowerCase().startsWith("windows");
@@ -66,12 +72,18 @@ public class ShellCore {
         builder.directory(new File(homeDir));
     }
 
-    public void process(String message) throws IOException, InterruptedException {
+    public void process(String message) throws IOException {
         if (currentProcess != null && currentProcess.isAlive()) {
             processInput.write(message + "\n");
             processInput.flush();
         } else {
-            builder.command("cmd.exe", "/c", message + "\n");
+            if (isWindows) {
+                builder.command("cmd.exe", "/c", message);
+            } else {
+                builder.command("/bin/bash", "-c", message);
+            }
+
+            log("Starting " + message);
             currentProcess = builder.start();
 
             OutputStream stdin = currentProcess.getOutputStream();
@@ -82,7 +94,7 @@ public class ShellCore {
             processOutput = new BufferedReader(new InputStreamReader(stdout));
             processError = new BufferedReader(new InputStreamReader(stderr));
 
-            if (outputThread == null) {
+            if (outputThread == null && debug) {
                 outputThread = new OutputThread(this);
                 outputThread.start();
             }
@@ -98,16 +110,19 @@ public class ShellCore {
         String error = "";
 
         if (currentProcess != null) {
-            if (currentProcess.isAlive()) {
-                int c = -1;
-                while (processOutput.ready() && (c = processOutput.read()) != -1) {
-                    output += (char)c;
-                }
-                while (processError.ready() && (c = processError.read()) != -1) {
-                    output += (char)c;
-                }
-                if (output == null) output = "";
-                if (error == null) error = "";
+            int c = -1;
+            while (processOutput.ready() && (c = processOutput.read()) != -1) {
+                output += (char)c;
+            }
+            while (processError.ready() && (c = processError.read()) != -1) {
+                output += (char)c;
+            }
+            if (output == null) output = "";
+            if (error == null) error = "";
+
+            if (!currentProcess.isAlive()) {
+                log("Current process died with exit code" + currentProcess.exitValue());
+                currentProcess = null;
             }
         }
 

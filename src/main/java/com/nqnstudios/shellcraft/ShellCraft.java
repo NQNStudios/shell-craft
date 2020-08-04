@@ -48,6 +48,7 @@ public class ShellCraft
     public void preInit(FMLPreInitializationEvent event)
     {
         logger = event.getModLog();
+        core.setLogger(logger);
     }
 
     @EventHandler
@@ -58,29 +59,43 @@ public class ShellCraft
     }
 
     @SubscribeEvent
-    public static void onTick(TickEvent.PlayerTickEvent evt) throws IOException {
+    public void onTick(TickEvent.PlayerTickEvent evt) {
+        //logger.debug("tick event with side " +evt.side.name() + " and phase " + evt.phase.name());
         if (evt.side == Side.CLIENT && evt.phase == TickEvent.Phase.END)
         {
             // Update the ShellCore
             core.tick();
 
             // Check for messages out of the ShellCore
-            String output = core.takeOutput();
+            String output = null;
+            try {
+                output = core.takeOutput();
+            } catch (IOException e) {
+                logger.debug("ioexception from takeoutput");
+                e.printStackTrace();
+            }
+            //logger.debug("checking for output");
             if (output.length() > 0) {
-                evt.player.sendMessage(new TextComponentString(output));
+                logger.debug("returning output " + output);
+                evt.player.sendMessage(new TextComponentString(output.replace("\r", "")));
             }
 
         }
     }
 
     @SubscribeEvent
-    public void onPlayerAttemptChat(ClientChatEvent event) throws IOException, InterruptedException {
+    public void onPlayerAttemptChat(ClientChatEvent event) {
         if (shellMode) {
             logger.debug("player attempted chat");
             logger.debug(event.getMessage());
             if (event.getMessage().charAt(0) != '/') {
                 event.setCanceled(true);
-                core.process(event.getMessage());
+                try {
+                    core.process(event.getMessage());
+                } catch (IOException e) {
+                    logger.debug("ioexception from core.process");
+                    e.printStackTrace();
+                }
             }
         }
     }
