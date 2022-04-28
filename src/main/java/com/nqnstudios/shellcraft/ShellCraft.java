@@ -6,6 +6,7 @@ import java.util.List;
 
 import javax.annotation.Nullable;
 
+import net.minecraftforge.fml.common.eventhandler.EventPriority;
 import org.apache.logging.log4j.Logger;
 
 import net.minecraft.command.CommandBase;
@@ -33,15 +34,10 @@ public class ShellCraft
     public static final String VERSION = "0.0";
 
     protected static Logger logger;
-    private static boolean shellMode = false;
     private static ShellCore core;
 
     static {
-        try {
-            core = new ShellCore();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        core = new ShellCore();
     }
 
     @EventHandler
@@ -73,9 +69,10 @@ public class ShellCraft
             } catch (IOException e) {
                 logger.debug("ioexception from takeoutput");
                 e.printStackTrace();
+
             }
             //logger.debug("checking for output");
-            if (output.length() > 0) {
+            if (output != null && output.length() > 0) {
                 logger.debug("returning output " + output);
                 evt.player.sendMessage(new TextComponentString(output.replace("\r", "")));
             }
@@ -83,20 +80,23 @@ public class ShellCraft
         }
     }
 
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
     public void onPlayerAttemptChat(ClientChatEvent event) {
-        if (shellMode) {
-            logger.debug("player attempted chat");
-            logger.debug(event.getMessage());
-            if (event.getMessage().charAt(0) != '/') {
-                event.setCanceled(true);
-                try {
-                    core.process(event.getMessage());
-                } catch (IOException e) {
-                    logger.debug("ioexception from core.process");
-                    e.printStackTrace();
-                }
+        try {
+            ProcessResult result = core.process(event.getMessage());
+            switch (result.type) {
+                case NotProcessed:
+                    return;
+                case NoOutput:
+                    event.setCanceled(true);
+                case NoShell:
+                    // TODO warn that there is no shell active
+                case Output:
+                    event.setMessage(result.output);
             }
+        } catch (IOException | InterruptedException e) {
+            logger.debug("ioexception from core.process(\"" + event.getMessage() + "\"");
+            e.printStackTrace();
         }
     }
 
@@ -128,13 +128,15 @@ public class ShellCraft
         @Override
         public void execute(MinecraftServer server, ICommandSender sender, String[] args) throws CommandException
         {
-            if (shellMode){
-                shellMode = false;
-                sender.sendMessage(new TextComponentString("Shell mode disabled!"));
+            String shell = "";
+            if (args.length > 0) {
+                shell = args[0];
             }
-            else {
-                shellMode = true;
-                sender.sendMessage(new TextComponentString("Shell mode enabled!"));
+
+            if (core.start(shell)) {
+                sender.sendMessage(new TextComponentString("Shell started!"));
+            } else {
+                sender.sendMessage(new TextComponentString("Something went wrong!"));
             }
         }
     }
